@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hakuna Matata — Control de Personal</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="screen-auth" class="screen active">
+  <div class="auth-wrap">
+    <div class="auth-box">
+      <div class="auth-logo">
+        <img src="logo.png" alt="Hakuna Matata">
+        <h2>Hakuna Matata</h2>
+        <p>Control de Personal</p>
+      </div>
+      <div class="tabs">
+        <button class="tab active" onclick="authTab('login')">Iniciar sesión</button>
+        <button class="tab" onclick="authTab('register')">Registrarse</button>
+      </div>
+      <div id="auth-login">
+        <div class="form-group"><label>Correo electrónico</label><input type="email" id="login-email" placeholder="correo@ejemplo.com"></div>
+        <div class="form-group"><label>Contraseña</label><input type="password" id="login-pass" placeholder="••••••••"></div>
+        <div id="login-error" class="alert alert-danger" style="display:none"></div>
+        <button class="btn btn-primary w100" onclick="doLogin()"><i class="ti ti-login"></i> Entrar</button>
+
+      </div>
+      <div id="auth-register" style="display:none">
+        <div class="grid-2">
+          <div class="form-group"><label>Nombre *</label><input id="reg-nombre" placeholder="Ana"></div>
+          <div class="form-group"><label>Apellido</label><input id="reg-apellido" placeholder="García"></div>
+        </div>
+        <div class="form-group"><label>Teléfono</label><input id="reg-tel" placeholder="222 000 0000"></div>
+        <div class="form-group"><label>Correo electrónico *</label><input type="email" id="reg-email" placeholder="ana@email.com"></div>
+        <div class="form-group"><label>Contraseña * <span class="hint" style="display:inline">(mín. 6 caracteres)</span></label><input type="password" id="reg-pass" placeholder="••••••••"></div>
+        <div id="reg-error" class="alert alert-danger" style="display:none"></div>
+        <button class="btn btn-primary w100" onclick="doRegister()"><i class="ti ti-user-plus"></i> Crear cuenta</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- WORKER -->
+<div id="screen-worker" class="screen">
+  <div class="topbar">
+    <div class="topbar-brand">
+      <img src="logo.png" class="topbar-logo" alt="logo">
+      <span class="topbar-title">Mi Panel</span>
+    </div>
+    <div class="topbar-right">
+      <span class="user-name" id="worker-name-top"></span>
+      <span id="worker-local-tag" class="local-tag" style="display:none"></span>
+      <button class="btn btn-sm" onclick="logout()"><i class="ti ti-logout"></i> Salir</button>
+    </div>
+  </div>
+  <div class="main-content">
+    <nav class="nav">
+      <button class="nav-btn active" data-view="registro" onclick="workerNav('registro',this)"><i class="ti ti-clock-record"></i> Registro del día</button>
+      <button class="nav-btn" data-view="historial" onclick="workerNav('historial',this)"><i class="ti ti-history"></i> Mi historial</button>
+      <button class="nav-btn" data-view="perfil" onclick="workerNav('perfil',this)"><i class="ti ti-user"></i> Mi perfil</button>
+    </nav>
+
+    <div id="wv-registro">
+      <div class="card" style="margin-bottom:1rem">
+        <div class="card-header-row">
+          <div>
+            <div class="section-title" id="today-label"></div>
+            <div class="text-muted small" id="today-date"></div>
+          </div>
+          <div id="clock-display" class="clock"></div>
+        </div>
+        <hr class="divider">
+        <div id="reg-status-msg"></div>
+
+        <!-- Entrada / Salida principal -->
+        <div class="grid-2" style="margin-bottom:1.2rem">
+          <div><div class="small text-muted">Hora de entrada</div><div id="entrada-val" class="time-big">—</div></div>
+          <div><div class="small text-muted">Hora de salida</div><div id="salida-val" class="time-big">—</div></div>
+        </div>
+        <div class="btn-row" style="margin-bottom:1.2rem">
+          <button class="btn btn-primary" id="btn-entrada" onclick="registrarEntrada()"><i class="ti ti-login"></i> Registrar entrada</button>
+          <button class="btn btn-success" id="btn-salida" onclick="registrarSalida()" disabled><i class="ti ti-logout"></i> Registrar salida</button>
+        </div>
+
+        <!-- Separador permiso -->
+        <div id="permiso-section" style="display:none">
+          <hr class="divider">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem">
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--warning-text);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:6px">
+                <i class="ti ti-clock-pause" style="font-size:15px"></i> Permiso de salida
+              </div>
+              <div class="small text-muted" id="permiso-estado-txt">Sin permiso activo</div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-sm" id="btn-permiso-salida" onclick="registrarPermisoSalida()" style="border-color:var(--warning-text);color:var(--warning-text)">
+                <i class="ti ti-door-exit"></i> Salir con permiso
+              </button>
+              <button class="btn btn-sm" id="btn-permiso-regreso" onclick="registrarPermisoRegreso()" disabled style="border-color:var(--jungle-bright);color:var(--jungle-pale)">
+                <i class="ti ti-door-enter"></i> Regresar
+              </button>
+            </div>
+          </div>
+          <!-- Log de permisos del día -->
+          <div id="permisos-log"></div>
+        </div>
+      </div>
+      <div class="card" id="cierre-dia-card" style="display:none">
+        <div class="section-title">Cierre del día</div>
+        <p class="text-muted small" style="margin-bottom:1rem">Completa los datos del día antes de enviar al administrador.</p>
+        <div class="grid-3">
+          <div class="form-group"><label>Base dejada ($)</label><input type="number" id="f-base" placeholder="0.00" min="0" step="0.01"></div>
+          <div class="form-group"><label>Total ventas ($)</label><input type="number" id="f-ventas" placeholder="0.00" min="0" step="0.01"></div>
+          <div class="form-group"><label>Total recargas ($)</label><input type="number" id="f-recargas" placeholder="0.00" min="0" step="0.01"></div>
+        </div>
+        <div class="form-group"><label>Comentarios / Pendientes</label><textarea id="f-comentarios" rows="3" placeholder="Ej: Faltó reponer producto X, pendiente cobro cliente Y..."></textarea></div>
+        <button class="btn btn-primary" onclick="enviarCierre()"><i class="ti ti-send"></i> Enviar al administrador</button>
+      </div>
+      <div class="card" id="registro-enviado-card" style="display:none">
+        <div class="alert alert-success"><i class="ti ti-check"></i> Registro enviado. El administrador revisará y aprobará tus horas.</div>
+        <div id="resumen-dia"></div>
+      </div>
+    </div>
+
+    <div id="wv-historial" style="display:none">
+      <div class="card"><div class="section-title">Mis registros</div><div id="worker-history-table"><div class="empty">No hay registros aún.</div></div></div>
+    </div>
+    <div id="wv-perfil" style="display:none">
+      <div class="card"><div class="section-title">Mi perfil</div><div id="worker-profile-view"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<div id="screen-admin" class="screen">
+  <div class="topbar">
+    <div class="topbar-brand">
+      <img src="logo.png" class="topbar-logo" alt="logo">
+      <span class="topbar-title">Panel Administrador</span>
+    </div>
+    <div class="topbar-right">
+      <span id="notif-count" class="notif-text"></span>
+      <button class="btn btn-sm" onclick="logout()"><i class="ti ti-logout"></i> Salir</button>
+    </div>
+  </div>
+  <div class="main-content">
+    <nav class="nav">
+      <button class="nav-btn active" data-view="aprobaciones" onclick="adminNav('aprobaciones',this)"><i class="ti ti-checks"></i> Aprobaciones <span id="notif-badge"></span></button>
+      <button class="nav-btn" data-view="registros" onclick="adminNav('registros',this)"><i class="ti ti-list"></i> Registros</button>
+      <button class="nav-btn" data-view="sueldos" onclick="adminNav('sueldos',this)"><i class="ti ti-cash"></i> Sueldos y pagos</button>
+      <button class="nav-btn" data-view="locales" onclick="adminNav('locales',this)"><i class="ti ti-building-store"></i> Locales</button>
+      <button class="nav-btn" data-view="empleadas" onclick="adminNav('empleadas',this)"><i class="ti ti-users"></i> Empleadas</button>
+    </nav>
+
+    <div id="av-aprobaciones">
+      <div class="card"><div class="section-title">Registros pendientes de aprobación</div><div id="pending-table"><div class="empty">No hay registros pendientes.</div></div></div>
+    </div>
+
+    <div id="av-registros" style="display:none">
+      <div class="card" style="margin-bottom:1rem">
+        <div class="filter-row">
+          <div class="form-group flex1"><label>Empleada</label><select id="filter-emp"><option value="">Todas</option></select></div>
+          <div class="form-group flex1"><label>Local</label><select id="filter-local"><option value="">Todos</option></select></div>
+          <div class="form-group"><label>Desde</label><input type="date" id="filter-from" style="width:145px"></div>
+          <div class="form-group"><label>Hasta</label><input type="date" id="filter-to" style="width:145px"></div>
+          <div class="form-group"><label>Estado</label><select id="filter-status" style="width:130px"><option value="">Todos</option><option value="pendiente">Pendiente</option><option value="aprobado">Aprobado</option><option value="rechazado">Rechazado</option></select></div>
+          <div class="form-group" style="align-self:flex-end"><button class="btn btn-primary btn-sm" onclick="loadAllRecords()"><i class="ti ti-filter"></i> Filtrar</button></div>
+        </div>
+      </div>
+      <div class="card"><div id="all-records-table"><div class="empty">Aplica filtros para ver registros.</div></div></div>
+    </div>
+
+    <div id="av-sueldos" style="display:none">
+      <div class="grid-2" style="margin-bottom:1rem">
+        <div class="card">
+          <div class="section-title">Tarifa por hora</div>
+          <div class="form-group"><label>Empleada</label><select id="sal-emp" onchange="loadCurrentSalary()"></select></div>
+          <div class="form-group">
+            <label>Pago por hora ($)</label>
+            <input type="number" id="sal-amount" placeholder="0.00" min="0" step="0.01">
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;padding:8px 12px;background:var(--bg-secondary);border-radius:var(--radius)">
+            <i class="ti ti-info-circle"></i> El pago se calcula multiplicando las horas trabajadas reales por esta tarifa.
+          </div>
+          <button class="btn btn-primary" onclick="saveSalary()"><i class="ti ti-device-floppy"></i> Guardar tarifa</button>
+        </div>
+        <div class="card">
+          <div class="section-title">Calcular pago del periodo</div>
+          <div class="form-group"><label>Empleada</label><select id="calc-emp"></select></div>
+          <div class="form-group"><label>Desde</label><input type="date" id="calc-from"></div>
+          <div class="form-group"><label>Hasta</label><input type="date" id="calc-to"></div>
+          <div class="form-group" style="display:flex;align-items:center;gap:10px;background:var(--warning-light);border:1px solid rgba(183,119,13,.3);border-radius:var(--radius);padding:10px 12px">
+            <input type="checkbox" id="calc-descontar-permiso" style="width:16px;height:16px;flex-shrink:0;accent-color:var(--primary)">
+            <label for="calc-descontar-permiso" style="font-size:12px;color:var(--warning-text);font-weight:600;text-transform:none;letter-spacing:0;cursor:pointer;margin:0">Descontar tiempo de permisos del pago</label>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="calcSalary()"><i class="ti ti-calculator"></i> Calcular</button>
+            <button class="btn" onclick="calcWeekly()"><i class="ti ti-calendar-week"></i> Semana actual</button>
+          </div>
+        </div>
+      </div>
+      <div class="card" id="calc-result" style="display:none">
+        <div class="section-title">Resultado del cálculo</div>
+        <div id="calc-result-content"></div>
+        <div class="btn-row" style="margin-top:1rem">
+          <button class="btn btn-success" onclick="saveCalcHistory()"><i class="ti ti-device-floppy"></i> Guardar en historial</button>
+          <button class="btn btn-primary" onclick="generatePDF()"><i class="ti ti-file-download"></i> Exportar PDF</button>
+        </div>
+      </div>
+      <div class="card"><div class="section-title">Historial de cálculos guardados</div><div id="salary-history"><div class="empty">No hay cálculos guardados.</div></div></div>
+    </div>
+
+    <div id="av-locales" style="display:none">
+      <div class="grid-2" style="margin-bottom:1rem">
+        <div class="card">
+          <div class="section-title">Locales registrados</div>
+          <div id="locales-list"><div class="empty">Cargando...</div></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Agregar local</div>
+          <div class="form-group"><label>Nombre del local *</label><input id="local-nombre" placeholder="Ej: Local Centro"></div>
+          <div class="form-group"><label>Dirección</label><input id="local-dir" placeholder="Ej: Av. Reforma 123"></div>
+          <div class="form-group"><label>Descripción</label><input id="local-desc" placeholder="Ej: Sucursal principal"></div>
+          <button class="btn btn-primary" onclick="saveLocal()"><i class="ti ti-plus"></i> Agregar local</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-title">Asignar empleada a local</div>
+        <div class="grid-3">
+          <div class="form-group"><label>Empleada</label><select id="assign-emp"></select></div>
+          <div class="form-group"><label>Local</label><select id="assign-local"></select></div>
+          <div class="form-group" style="align-self:flex-end"><button class="btn btn-primary" onclick="assignLocal()"><i class="ti ti-link"></i> Asignar</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="av-empleadas" style="display:none">
+      <div class="card">
+        <div class="filter-row" style="margin-bottom:1rem">
+          <div class="form-group flex1"><label>Filtrar por local</label><select id="emp-filter-local" onchange="renderEmployees()"><option value="">Todos los locales</option></select></div>
+        </div>
+        <div class="section-title">Empleadas registradas</div>
+        <div id="emp-list-table"><div class="empty">No hay empleadas registradas.</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="loading-overlay"><div class="spinner"></div><span id="loading-text">Cargando...</span></div>
+
+<script type="module" src="js/firebase-config.js"></script>
+<script type="module" src="js/auth.js"></script>
+<script type="module" src="js/worker.js"></script>
+<script type="module" src="js/admin.js"></script>
+<script type="module" src="js/pdf.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
