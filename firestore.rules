@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuth() { return request.auth != null; }
+    function isAdmin() {
+      return isAuth() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /users/{userId} {
+      allow read:   if isAuth() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAuth() && request.auth.uid == userId;
+      allow update: if isAuth() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+    match /users/admin-default {
+      allow read, write: if true;
+    }
+    match /records/{recordId} {
+      allow read:   if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+    match /salaries/{empId} {
+      allow read:  if isAuth() && (request.auth.uid == empId || isAdmin());
+      allow write: if isAdmin();
+    }
+    match /salary_history/{docId} {
+      allow read, write: if isAdmin();
+    }
+    match /locales/{localId} {
+      allow read:  if isAuth();
+      allow write: if isAdmin();
+    }
+  }
+}
