@@ -168,7 +168,11 @@
           <div class="form-group"><label>Desde</label><input type="date" id="filter-from" style="width:145px"></div>
           <div class="form-group"><label>Hasta</label><input type="date" id="filter-to" style="width:145px"></div>
           <div class="form-group"><label>Estado</label><select id="filter-status" style="width:130px"><option value="">Todos</option><option value="pendiente">Pendiente</option><option value="aprobado">Aprobado</option><option value="rechazado">Rechazado</option></select></div>
-          <div class="form-group" style="align-self:flex-end"><button class="btn btn-primary btn-sm" onclick="loadAllRecords()"><i class="ti ti-filter"></i> Filtrar</button></div>
+          <div class="form-group" style="align-self:flex-end;display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="loadAllRecords()"><i class="ti ti-filter"></i> Filtrar</button>
+            <button class="btn btn-sm" onclick="openAdvanceModal()" style="border-color:var(--jungle-mid);color:var(--jungle-pale)"><i class="ti ti-clock-bolt"></i> Adelantar salida</button>
+            <button class="btn btn-sm" onclick="openNewDayModal()" style="background:var(--primary);color:#fff;border-color:var(--primary)"><i class="ti ti-calendar-plus"></i> Agregar día</button>
+          </div>
         </div>
       </div>
       <div class="card"><div id="all-records-table"><div class="empty">Aplica filtros para ver registros.</div></div></div>
@@ -248,6 +252,79 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- MODAL: Editar / Adelantar / Agregar día -->
+<div id="modal-edit" style="display:none;position:fixed;inset:0;z-index:2000;align-items:center;justify-content:center;background:rgba(10,15,10,.85);backdrop-filter:blur(4px);overflow-y:auto">
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;width:100%;max-width:520px;box-shadow:var(--shadow-lg);margin:1rem auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+      <div class="section-title" id="modal-title" style="margin-bottom:0">Editar registro</div>
+      <button onclick="closeEditModal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:20px;line-height:1">✕</button>
+    </div>
+
+    <input type="hidden" id="modal-record-id">
+    <input type="hidden" id="modal-mode"> <!-- 'edit' | 'advance' | 'newday' -->
+
+    <div id="modal-advance-banner" style="display:none" class="alert alert-info">
+      <i class="ti ti-clock-bolt"></i> Adelanta la hora de salida de un registro que la empleada ya inició. El formulario de cierre del día queda <strong>pendiente</strong> y el sueldo no se calcula hasta que el admin apruebe el registro.
+    </div>
+
+    <div id="modal-newday-banner" style="display:none" class="alert alert-success">
+      <i class="ti ti-calendar-plus"></i> Agrega un día trabajado que no quedó registrado. El registro se creará <strong>ya aprobado</strong> y entrará al cálculo de sueldo de inmediato.
+    </div>
+
+    <div class="grid-2">
+      <div class="form-group" id="modal-emp-group">
+        <label>Empleada</label>
+        <select id="modal-emp-id"></select>
+      </div>
+      <div class="form-group">
+        <label>Fecha</label>
+        <input type="date" id="modal-fecha">
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group" id="modal-entrada-group">
+        <label>Hora de entrada</label>
+        <input type="time" id="modal-entrada">
+      </div>
+      <div class="form-group">
+        <label id="modal-salida-label">Hora de salida</label>
+        <input type="time" id="modal-salida">
+      </div>
+    </div>
+
+    <div class="form-group" id="modal-motivo-group">
+      <label>Motivo del ajuste</label>
+      <input id="modal-motivo" placeholder="Ej: Corrección de horario, acuerdo previo...">
+    </div>
+
+    <!-- Campos extra solo para nuevo día -->
+    <div id="modal-newday-fields" style="display:none">
+      <hr class="divider">
+      <div class="grid-3">
+        <div class="form-group"><label>Base dejada ($)</label><input type="number" id="modal-base" placeholder="0.00" min="0" step="0.01"></div>
+        <div class="form-group"><label>Ventas ($)</label><input type="number" id="modal-ventas" placeholder="0.00" min="0" step="0.01"></div>
+        <div class="form-group"><label>Recargas ($)</label><input type="number" id="modal-recargas" placeholder="0.00" min="0" step="0.01"></div>
+      </div>
+      <div class="form-group"><label>Comentarios / Pendientes</label><textarea id="modal-comentarios" rows="2" placeholder="Ej: Todo normal, pendiente cobro..."></textarea></div>
+      <div style="font-size:12px;color:var(--success-text);padding:8px 12px;background:var(--success-light);border-radius:var(--radius);border:1px solid rgba(45,106,49,.4)">
+        <i class="ti ti-check"></i> Este registro se guardará como <strong>aprobado</strong> y contará en el cálculo de sueldo de inmediato.
+      </div>
+    </div>
+
+    <div id="modal-advance-extra" style="display:none">
+      <hr class="divider">
+      <p class="small text-muted" style="margin-bottom:.75rem">La empleada ya registró su entrada. Solo se adelantará la <strong>hora de salida</strong>. El formulario de cierre (ventas, recargas, comentarios) quedará pendiente para que ella lo complete. El registro <strong>no entra al cálculo de sueldo</strong> hasta ser aprobado.</p>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:1.25rem">
+      <button class="btn" onclick="closeEditModal()">Cancelar</button>
+      <button class="btn btn-primary" id="modal-save-btn" onclick="saveEditModal()">
+        <i class="ti ti-device-floppy"></i> Guardar
+      </button>
+    </div>
   </div>
 </div>
 

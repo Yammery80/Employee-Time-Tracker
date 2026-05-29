@@ -66,8 +66,9 @@ async function renderPending() {
       const [name, localName] = await Promise.all([getUserName(r.userId), getLocalName(r.localId)]);
       const permMins = totalPermisoMins(r.permisos);
       const permCell = permMins > 0 ? `<span style="color:var(--warning-text)">${fmtMinutos(permMins)}</span>` : "—";
+      const anticipadoTag = r.esAnticipado ? ' <span class="badge badge-anticipado" style="font-size:9px">anticipado</span>' : "";
       return `<tr>
-        <td>${name}</td>
+        <td>${name}${anticipadoTag}</td>
         <td>${localName ? `<span class="local-tag"><i class="ti ti-building-store"></i>${localName}</span>` : "—"}</td>
         <td>${fmtDate(r.fecha)}</td><td>${r.dia}</td>
         <td>${r.entrada}</td><td>${r.salida||"—"}</td>
@@ -75,6 +76,7 @@ async function renderPending() {
         <td>${permCell}</td>
         <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.comentarios||""}">${r.comentarios||"—"}</td>
         <td><div class="row-actions">
+          <button class="btn btn-sm" title="Ajustar horas" onclick="openEditModal('${d.id}','${r.fecha}','${r.entrada||""}','${r.salida||""}')" style="padding:5px 8px;border-color:var(--jungle-mid);color:var(--jungle-pale)"><i class="ti ti-pencil"></i></button>
           <button class="btn btn-success btn-sm" onclick="approveRecord('${d.id}',true)"><i class="ti ti-check"></i> Aprobar</button>
           <button class="btn btn-danger btn-sm" onclick="approveRecord('${d.id}',false)"><i class="ti ti-x"></i> Rechazar</button>
         </div></td>
@@ -83,7 +85,7 @@ async function renderPending() {
 
     el.innerHTML = `<div class="table-wrap"><table><thead><tr>
       <th>Empleada</th><th>Local</th><th>Fecha</th><th>Día</th><th>Entrada</th><th>Salida</th>
-      <th>Ventas</th><th>Recargas</th><th>Permiso</th><th>Comentarios</th><th>Acción</th>
+      <th>Ventas</th><th>Recargas</th><th>Permiso</th><th>Comentarios</th><th>Acciones</th>
     </tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
   } catch(e) { el.innerHTML = '<div class="empty">Error al cargar.</div>'; console.error(e); }
 }
@@ -102,6 +104,10 @@ window.approveRecord = async function(id, approve) {
 window.loadAllRecords = async function() {
   const el = document.getElementById("all-records-table");
   el.innerHTML = '<div class="empty">Cargando...</div>';
+
+  // Auto-limpiar registros >30 días cada vez que se abre esta vista
+  await autoCleanOldRecords();
+
   const emp    = document.getElementById("filter-emp").value;
   const local  = document.getElementById("filter-local")?.value || "";
   const from   = document.getElementById("filter-from").value;
@@ -123,21 +129,33 @@ window.loadAllRecords = async function() {
       const [name, localName] = await Promise.all([getUserName(r.userId), getLocalName(r.localId)]);
       const permMins = totalPermisoMins(r.permisos);
       const permCell = permMins > 0 ? `<span style="color:var(--warning-text)">${fmtMinutos(permMins)}</span>` : "—";
+      const statusBadge = r.esAnticipado
+        ? `<span class="badge badge-anticipado">anticipado</span>`
+        : `<span class="badge badge-${r.status}">${r.status}</span>`;
+      const ajustadoTag = r.ajustado && !r.esAnticipado
+        ? ` <span title="Horas ajustadas por admin${r.ajusteMotivo?': '+r.ajusteMotivo:''}" style="font-size:10px;color:var(--jungle-light);cursor:help"><i class="ti ti-edit"></i></span>`
+        : "";
+      const adminTag = r.agregadoPorAdmin
+        ? ` <span title="Día agregado por admin" style="font-size:10px;color:var(--jungle-pale);cursor:help"><i class="ti ti-shield"></i></span>`
+        : "";
+      const editBtn   = `<button class="btn btn-sm" title="Editar horas" onclick="openEditModal('${r.id}','${r.fecha}','${r.entrada||""}','${r.salida||""}')" style="padding:4px 8px;border-color:var(--jungle-mid);color:var(--jungle-pale)"><i class="ti ti-pencil"></i></button>`;
+      const statusBtn = `<button class="btn btn-sm" title="Cambiar estado" onclick="changeRecordStatus('${r.id}','${r.status}')" style="padding:4px 8px;border-color:var(--border);color:var(--text-muted)"><i class="ti ti-refresh"></i></button>`;
       return `<tr>
-        <td>${name}</td>
+        <td>${name}${ajustadoTag}${adminTag}</td>
         <td>${localName ? `<span class="local-tag">${localName}</span>` : "—"}</td>
         <td>${fmtDate(r.fecha)}</td><td>${r.dia}</td>
-        <td>${r.entrada}</td><td>${r.salida||"—"}</td>
+        <td>${r.entrada||"—"}</td><td>${r.salida||"—"}</td>
         <td>${fmtMoney(r.ventas)}</td><td>${fmtMoney(r.recargas)}</td>
         <td>${fmtMoney(r.base)}</td>
         <td>${permCell}</td>
-        <td><span class="badge badge-${r.status}">${r.status}</span></td>
-        <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.comentarios||""}">${r.comentarios||"—"}</td>
+        <td>${statusBadge}</td>
+        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.comentarios||""}">${r.comentarios||"—"}</td>
+        <td><div class="row-actions">${editBtn}${statusBtn}</div></td>
       </tr>`;
     }));
     el.innerHTML = `<div class="table-wrap"><table><thead><tr>
       <th>Empleada</th><th>Local</th><th>Fecha</th><th>Día</th><th>Entrada</th><th>Salida</th>
-      <th>Ventas</th><th>Recargas</th><th>Base</th><th>Permiso</th><th>Estado</th><th>Notas</th>
+      <th>Ventas</th><th>Recargas</th><th>Base</th><th>Permiso</th><th>Estado</th><th>Notas</th><th></th>
     </tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
   } catch(e) { el.innerHTML='<div class="empty">Error al cargar.</div>'; console.error(e); }
 };
@@ -553,3 +571,235 @@ function fmtHoras(mins) {
   const m = mins % 60;
   return `${h}h ${m}m`;
 }
+
+// ── Modal: Editar registro ────────────────────────────────────
+window.openEditModal = function(recordId, fecha, entrada, salida) {
+  document.getElementById("modal-record-id").value = recordId;
+  document.getElementById("modal-mode").value = "edit";
+  document.getElementById("modal-title").textContent = "Editar horas del registro";
+  document.getElementById("modal-advance-banner").style.display = "none";
+  document.getElementById("modal-advance-extra").style.display = "none";
+  document.getElementById("modal-emp-group").style.display = "none";
+  document.getElementById("modal-newday-banner").style.display = "none";
+  document.getElementById("modal-newday-fields").style.display = "none";
+  document.getElementById("modal-motivo-group").style.display = "block";
+  // Asegurar que entrada siempre sea visible en modo edición
+  document.getElementById("modal-entrada-group").style.display = "block";
+  document.getElementById("modal-salida-hint").style.display = "none";
+  document.getElementById("modal-fecha").value = fecha;
+  document.getElementById("modal-fecha").disabled = true;
+  document.getElementById("modal-entrada").value = entrada || "";
+  document.getElementById("modal-salida").value = salida || "";
+  document.getElementById("modal-motivo").value = "";
+  document.getElementById("modal-save-btn").innerHTML = '<i class="ti ti-device-floppy"></i> Guardar cambios';
+  document.getElementById("modal-edit").classList.add("visible");
+};
+
+// ── Modal: Agregar día completo ───────────────────────────────
+window.openNewDayModal = async function() {
+  const workers = (await getDocs(query(collection(db,"users"), where("role","==","worker")))).docs;
+  const empSel = document.getElementById("modal-emp-id");
+  empSel.innerHTML = workers.map(d=>`<option value="${d.id}">${d.data().nombre} ${d.data().apellido||""}</option>`).join("") || '<option value="">Sin empleadas</option>';
+
+  document.getElementById("modal-record-id").value = "";
+  document.getElementById("modal-mode").value = "newday";
+  document.getElementById("modal-title").textContent = "Agregar día trabajado";
+  document.getElementById("modal-advance-banner").style.display = "none";
+  document.getElementById("modal-newday-banner").style.display = "flex";
+  document.getElementById("modal-advance-extra").style.display = "none";
+  document.getElementById("modal-newday-fields").style.display = "block";
+  document.getElementById("modal-emp-group").style.display = "block";
+  document.getElementById("modal-motivo-group").style.display = "none";
+  document.getElementById("modal-entrada-group").style.display = "block";
+  document.getElementById("modal-salida-label").textContent = "Hora de salida";
+
+  const today = new Date();
+  document.getElementById("modal-fecha").value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+  document.getElementById("modal-fecha").disabled = false;
+  document.getElementById("modal-entrada").value = "";
+  document.getElementById("modal-salida").value = "";
+  document.getElementById("modal-base").value = "";
+  document.getElementById("modal-ventas").value = "";
+  document.getElementById("modal-recargas").value = "";
+  document.getElementById("modal-comentarios").value = "";
+  document.getElementById("modal-save-btn").innerHTML = '<i class="ti ti-calendar-plus"></i> Agregar día';
+  document.getElementById("modal-edit").classList.add("visible");
+};
+window.openAdvanceModal = async function() {
+  const workers = (await getDocs(query(collection(db,"users"), where("role","==","worker")))).docs;
+  const empSel = document.getElementById("modal-emp-id");
+  empSel.innerHTML = workers.map(d=>`<option value="${d.id}">${d.data().nombre} ${d.data().apellido||""}</option>`).join("") || '<option value="">Sin empleadas</option>';
+
+  document.getElementById("modal-record-id").value = "";
+  document.getElementById("modal-mode").value = "advance";
+  document.getElementById("modal-title").textContent = "Adelantar hora de salida";
+  document.getElementById("modal-advance-banner").style.display = "flex";
+  document.getElementById("modal-advance-extra").style.display = "block";
+  document.getElementById("modal-emp-group").style.display = "block";
+  document.getElementById("modal-motivo-group").style.display = "none";
+  document.getElementById("modal-newday-banner").style.display = "none";
+  document.getElementById("modal-newday-fields").style.display = "none";
+
+  // Ocultar entrada — la empleada ya la registró o la registrará
+  document.getElementById("modal-entrada-group").style.display = "none";
+  document.getElementById("modal-salida-hint").style.display = "inline";
+
+  const today = new Date();
+  document.getElementById("modal-fecha").value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+  document.getElementById("modal-fecha").disabled = false;
+  document.getElementById("modal-entrada").value = "";
+  document.getElementById("modal-salida").value = "";
+  document.getElementById("modal-save-btn").innerHTML = '<i class="ti ti-clock-bolt"></i> Adelantar salida';
+  document.getElementById("modal-edit").classList.add("visible");
+};
+
+window.closeEditModal = function() {
+  document.getElementById("modal-edit").classList.remove("visible");
+};
+
+window.saveEditModal = async function() {
+  const mode    = document.getElementById("modal-mode").value;
+  const recId   = document.getElementById("modal-record-id").value;
+  const entrada = document.getElementById("modal-entrada").value;
+  const salida  = document.getElementById("modal-salida").value;
+  const fecha   = document.getElementById("modal-fecha").value;
+
+  if (mode === "edit" && !entrada) { alert("La hora de entrada es obligatoria."); return; }
+
+  showLoading(mode === "edit" ? "Guardando ajuste..." : mode === "newday" ? "Guardando día..." : "Actualizando...");
+  try {
+    if (mode === "edit") {
+      const motivo = document.getElementById("modal-motivo").value.trim();
+      await updateDoc(doc(db,"records",recId), {
+        entrada,
+        salida: salida || null,
+        ajustado: true,
+        ajusteMotivo: motivo || "Ajuste manual por administrador",
+        ajusteAt: serverTimestamp()
+      });
+      closeEditModal();
+      const aprobView = document.getElementById("av-aprobaciones");
+      if (aprobView && aprobView.style.display !== "none") await renderPending();
+      else await loadAllRecords();
+
+    } else if (mode === "newday") {
+      // ── NUEVO DÍA: crear registro completo aprobado de inmediato
+      const empId = document.getElementById("modal-emp-id").value;
+      if (!empId)   { alert("Selecciona una empleada."); hideLoading(); return; }
+      if (!entrada) { alert("La hora de entrada es obligatoria."); hideLoading(); return; }
+      if (!fecha)   { alert("La fecha es obligatoria."); hideLoading(); return; }
+
+      // Verificar que no exista ya un registro ese día
+      const existing = (await getDocs(query(
+        collection(db,"records"),
+        where("userId","==",empId),
+        where("fecha","==",fecha)
+      ))).docs;
+      if (existing.length) {
+        alert("Ya existe un registro para esa empleada en esa fecha. Usa el botón ✏ para editarlo.");
+        hideLoading(); return;
+      }
+
+      const userSnap = await getDoc(doc(db,"users",empId));
+      const u = userSnap.exists() ? userSnap.data() : {};
+      const DAYS = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+      const dia  = DAYS[new Date(fecha+"T12:00:00").getDay()];
+
+      await addDoc(collection(db,"records"), {
+        userId:   empId,
+        localId:  u.localId || null,
+        fecha, dia,
+        entrada,
+        salida:   salida || null,
+        base:     parseFloat(document.getElementById("modal-base").value)     || 0,
+        ventas:   parseFloat(document.getElementById("modal-ventas").value)   || 0,
+        recargas: parseFloat(document.getElementById("modal-recargas").value) || 0,
+        comentarios: document.getElementById("modal-comentarios").value || "",
+        status:       "aprobado",   // ← directo aprobado
+        cierreEnviado: true,
+        permisos:     [],
+        minutoPermiso: 0,
+        agregadoPorAdmin: true,
+        ajustado: true,
+        createdAt: serverTimestamp()
+      });
+
+      closeEditModal();
+      await loadAllRecords();
+      alert("Día trabajado agregado y aprobado correctamente.");
+
+    } else {
+      // ── ADVANCE: adelantar hora de salida
+      const empId = document.getElementById("modal-emp-id").value;
+      if (!empId)  { alert("Selecciona una empleada."); hideLoading(); return; }
+      if (!salida) { alert("Ingresa la hora de salida estimada."); hideLoading(); return; }
+
+      const existing = (await getDocs(query(
+        collection(db,"records"),
+        where("userId","==",empId),
+        where("fecha","==",fecha)
+      ))).docs;
+
+      if (!existing.length) {
+        alert("La empleada aún no ha registrado su entrada ese día. Espera a que lo haga y luego adelanta su salida.");
+        hideLoading(); return;
+      }
+
+      await updateDoc(doc(db,"records", existing[0].id), {
+        salida,
+        salidaAnticipada: true,
+        ajustado: true,
+        ajusteMotivo: "Salida adelantada por administrador",
+        ajusteAt: serverTimestamp()
+      });
+
+      closeEditModal();
+      await loadAllRecords();
+      alert("Hora de salida adelantada. El registro sigue pendiente hasta que el admin lo apruebe.");
+    }
+  } catch(e) { alert("Error: "+e.message); console.error(e); }
+  hideLoading();
+};
+
+// ── Cambiar estado de un registro ────────────────────────────
+window.changeRecordStatus = async function(id, currentStatus) {
+  // Ciclo: pendiente → aprobado → rechazado → pendiente
+  const next = { pendiente:"aprobado", aprobado:"rechazado", rechazado:"pendiente" };
+  const labels = { pendiente:"Pendiente", aprobado:"Aprobado", rechazado:"Rechazado" };
+  const newStatus = next[currentStatus] || "pendiente";
+  if (!confirm(`Cambiar estado de "${labels[currentStatus]}" a "${labels[newStatus]}"?`)) return;
+  showLoading("Cambiando estado...");
+  try {
+    await updateDoc(doc(db,"records",id), { status: newStatus });
+    await updateNotifCount();
+    await loadAllRecords();
+  } catch(e) { alert("Error: "+e.message); }
+  hideLoading();
+};
+
+// ── Auto-eliminar registros con más de 30 días ────────────────
+// Se llama automáticamente al cargar los registros
+async function autoCleanOldRecords() {
+  try {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth()+1).padStart(2,"0")}-${String(cutoff.getDate()).padStart(2,"0")}`;
+
+    const snap = await getDocs(collection(db,"records"));
+    const toDelete = snap.docs.filter(d => {
+      const r = d.data();
+      return r.fecha && r.fecha < cutoffStr;
+    });
+
+    if (toDelete.length > 0) {
+      await Promise.all(toDelete.map(d => deleteDoc(doc(db,"records",d.id))));
+      console.log(`Auto-eliminados ${toDelete.length} registros con más de 30 días.`);
+    }
+  } catch(e) { console.warn("autoCleanOldRecords:", e.message); }
+}
+
+// Close modal on backdrop click
+document.addEventListener("click", e => {
+  const modal = document.getElementById("modal-edit");
+  if (e.target === modal) closeEditModal();
+});

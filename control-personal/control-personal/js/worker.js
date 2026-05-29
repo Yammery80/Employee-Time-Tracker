@@ -130,7 +130,6 @@ function applyTodayUI(rec) {
   document.getElementById("salida-val").textContent  = rec.salida  || "—";
   document.getElementById("btn-entrada").disabled = true;
 
-  // Mostrar sección de permisos una vez que hay entrada
   const ps = document.getElementById("permiso-section");
   if (ps) ps.style.display = "block";
 
@@ -138,12 +137,18 @@ function applyTodayUI(rec) {
     document.getElementById("btn-salida").disabled = true;
     document.getElementById("btn-permiso-salida").disabled = true;
     document.getElementById("btn-permiso-regreso").disabled = true;
+
     if (rec.cierreEnviado) {
       document.getElementById("cierre-dia-card").style.display = "none";
       document.getElementById("registro-enviado-card").style.display = "block";
       renderResumenDia(rec);
     } else {
+      // Salida anticipada puesta por admin: mostrar aviso y el formulario de cierre
       document.getElementById("cierre-dia-card").style.display = "block";
+      if (rec.salidaAnticipada) {
+        const msg = document.getElementById("reg-status-msg");
+        if (msg) msg.innerHTML = `<div class="alert alert-info" style="margin-bottom:1rem"><i class="ti ti-clock-bolt"></i> Tu hora de salida fue adelantada por el administrador. Completa el formulario de cierre.</div>`;
+      }
     }
   } else {
     document.getElementById("btn-salida").disabled = false;

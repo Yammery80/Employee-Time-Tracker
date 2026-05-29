@@ -170,3 +170,13 @@ tr:hover td { background:var(--bg-secondary); }
   .main-content{padding:12px}
   .clock{font-size:18px}
 }
+
+/* ===== MODAL ===== */
+#modal-edit { display:none; }
+#modal-edit.visible { display:flex !important; }
+
+.badge-anticipado {
+  background: #1a2a3a;
+  color: #7fb3d3;
+  border: 1px solid rgba(26,82,118,.5);
+}
