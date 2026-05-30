@@ -259,26 +259,25 @@ window.calcSalary = async function() {
     const totalVentas    = allRecs.reduce((s,r)=>s+parseFloat(r.ventas||0),0);
     const totalRecargas  = allRecs.reduce((s,r)=>s+parseFloat(r.recargas||0),0);
     const totalPermisoMinsTotales = allRecs.reduce((s,r)=>s+(r.minutoPermiso||0),0);
+    const totalConsumosGlobal = allRecs.reduce((s,r)=>s+parseFloat(r.totalConsumos||0),0);
 
     let totalPago    = 0;
     let totalMinsTrabajados = 0;
 
     const recsConPago = allRecs.map(r => {
-      // Calcular minutos brutos del turno (entrada → salida)
-      const minsBrutos = calcMinsBetween(r.entrada, r.salida);
-      const permMins   = r.minutoPermiso || 0;
-      // Minutos realmente pagados
-      const minsNetos  = descontarPermiso
-        ? Math.max(0, minsBrutos - permMins)
-        : minsBrutos;
-      const horasNetas = minsNetos / 60;
-      const pagoDia    = tarifaHora * horasNetas;
-      const descuento  = descontarPermiso ? tarifaHora * (permMins/60) : 0;
+      const minsBrutos   = calcMinsBetween(r.entrada, r.salida);
+      const permMins     = r.minutoPermiso || 0;
+      const minsNetos    = descontarPermiso ? Math.max(0, minsBrutos - permMins) : minsBrutos;
+      const horasNetas   = minsNetos / 60;
+      const pagoHoras    = tarifaHora * horasNetas;
+      const consumosDia  = parseFloat(r.totalConsumos || 0);
+      const pagoDia      = Math.max(0, pagoHoras - consumosDia);
+      const descuento    = descontarPermiso ? tarifaHora * (permMins/60) : 0;
 
       totalPago += pagoDia;
       totalMinsTrabajados += minsNetos;
 
-      return { ...r, minsBrutos, minsNetos, horasNetas, pagoDia, descuento, permMins };
+      return { ...r, minsBrutos, minsNetos, horasNetas, pagoHoras, pagoDia, descuento, permMins, consumosDia };
     });
 
     const totalHorasTrabajadas = totalMinsTrabajados / 60;
@@ -287,30 +286,33 @@ window.calcSalary = async function() {
       empId, empName:`${u.nombre||""} ${u.apellido||""}`.trim(),
       from, to, tarifaHora, diasTrabajados,
       totalHorasTrabajadas, totalPago,
-      totalVentas, totalRecargas, totalPermisoMinsTotales,
+      totalVentas, totalRecargas, totalPermisoMinsTotales, totalConsumosGlobal,
       descontarPermiso, records: recsConPago, userData: u
     };
 
     const tableRows = await Promise.all(recsConPago.map(async r => {
-      const localName = await getLocalName(r.localId);
-      const brutoStr  = fmtHoras(r.minsBrutos);
-      const netosStr  = r.minsNetos !== r.minsBrutos
+      const localName   = await getLocalName(r.localId);
+      const brutoStr    = fmtHoras(r.minsBrutos);
+      const netosStr    = r.minsNetos !== r.minsBrutos
         ? `<span style="color:var(--jungle-light)">${fmtHoras(r.minsNetos)}</span>`
         : fmtHoras(r.minsNetos);
-      const permCell  = r.permMins > 0
+      const permCell    = r.permMins > 0
         ? `<span style="color:var(--warning-text)">-${fmtMinutos(r.permMins)}</span>`
         : "—";
+      const consumoCell = r.consumosDia > 0
+        ? `<span style="color:var(--danger-text);font-weight:600">-${fmtMoney(r.consumosDia)}</span>`
+        : "—";
+      const consumosTip = (r.consumos||[]).map(c=>`${c.motivo}: ${fmtMoney(c.monto)}`).join(" | ");
       return `<tr>
         <td>${fmtDate(r.fecha)}</td>
         <td>${r.dia}</td>
         <td>${localName ? `<span class="local-tag">${localName}</span>` : "—"}</td>
-        <td>${r.entrada}</td>
+        <td>${r.entrada||"—"}</td>
         <td>${r.salida||"—"}</td>
         <td>${brutoStr}</td>
         <td>${permCell}</td>
         <td>${netosStr}</td>
-        <td>${fmtMoney(r.ventas)}</td>
-        <td>${fmtMoney(r.recargas)}</td>
+        <td title="${consumosTip}">${consumoCell}</td>
         <td><strong>${fmtMoney(r.pagoDia)}</strong></td>
         <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis">${r.comentarios||"—"}</td>
       </tr>`;
@@ -320,16 +322,16 @@ window.calcSalary = async function() {
       <div class="grid-4" style="margin-bottom:1rem">
         <div class="metric"><div class="metric-val blue">${diasTrabajados}</div><div class="metric-lbl">Días trabajados</div></div>
         <div class="metric"><div class="metric-val blue">${fmtHoras(totalMinsTrabajados)}</div><div class="metric-lbl">Horas pagadas</div></div>
-        <div class="metric"><div class="metric-val">${fmtMoney(tarifaHora)}</div><div class="metric-lbl">Tarifa por hora</div></div>
+        <div class="metric"><div class="metric-val" style="color:var(--danger-text)">${totalConsumosGlobal > 0 ? "-"+fmtMoney(totalConsumosGlobal) : "—"}</div><div class="metric-lbl">Total consumos</div></div>
         <div class="metric"><div class="metric-val green">${fmtMoney(totalPago)}</div><div class="metric-lbl">Total a pagar</div></div>
       </div>
       ${descontarPermiso && totalPermisoMinsTotales > 0 ? `<div class="alert alert-info" style="margin-bottom:1rem"><i class="ti ti-info-circle"></i> Permisos descontados: <strong>${fmtMinutos(totalPermisoMinsTotales)}</strong> del tiempo pagado.</div>` : ""}
+      ${totalConsumosGlobal > 0 ? `<div class="alert alert-danger" style="margin-bottom:1rem"><i class="ti ti-shopping-bag"></i> Consumos del periodo: <strong>-${fmtMoney(totalConsumosGlobal)}</strong> descontados del pago.</div>` : ""}
       <div class="table-wrap"><table><thead><tr>
         <th>Fecha</th><th>Día</th><th>Local</th><th>Entrada</th><th>Salida</th>
-        <th>Hrs brutas</th><th>Permiso</th><th>Hrs pagadas</th>
-        <th>Ventas</th><th>Recargas</th><th>Pago día</th><th>Notas</th>
+        <th>Hrs brutas</th><th>Permiso</th><th>Hrs pagadas</th><th>Consumos</th><th>Pago día</th><th>Notas</th>
       </tr></thead><tbody>
-        ${tableRows.join("")||'<tr><td colspan="12" class="empty">Sin registros aprobados en este periodo</td></tr>'}
+        ${tableRows.join("")||'<tr><td colspan="11" class="empty">Sin registros aprobados en este periodo</td></tr>'}
       </tbody></table></div>`;
     document.getElementById("calc-result").style.display = "block";
   } catch(e) { alert("Error al calcular: " + e.message); console.error(e); }
@@ -497,18 +499,68 @@ window.renderEmployees = async function() {
       const total=allRecs.filter(r=>r.userId===d.id).length;
       const aprobados=allRecs.filter(r=>r.userId===d.id&&r.status==="aprobado").length;
       const localName=u.localId?localesMap[u.localId]||"—":"—";
+      const uid = d.id;
+      const passDisplay = u.pass
+        ? `<span style="display:flex;align-items:center;gap:6px">
+            <span id="pass-${uid}" style="font-family:monospace;letter-spacing:2px;font-size:13px">••••••••</span>
+            <button onclick="togglePass('${uid}','${u.pass}')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:2px;line-height:1" title="Mostrar/ocultar contraseña">
+              <i class="ti ti-eye" id="eye-${uid}"></i>
+            </button>
+            <button onclick="setStoredPass('${uid}')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:2px;line-height:1" title="Actualizar contraseña guardada">
+              <i class="ti ti-pencil" style="font-size:13px"></i>
+            </button>
+          </span>`
+        : `<span style="display:flex;align-items:center;gap:6px">
+            <span style="color:var(--text-muted);font-size:12px">No guardada</span>
+            <button onclick="setStoredPass('${uid}')" style="background:none;border:none;cursor:pointer;color:var(--jungle-light);padding:2px;line-height:1" title="Guardar contraseña">
+              <i class="ti ti-plus" style="font-size:13px"></i>
+            </button>
+          </span>`;
       return `<tr>
         <td>${u.nombre} ${u.apellido||""}</td>
         <td class="text-muted small">${u.email}</td>
         <td>${u.tel||"—"}</td>
+        <td>${passDisplay}</td>
         <td><span class="local-tag">${localName}</span></td>
         <td>${fmtMoney(sals[d.id]||0)}</td>
         <td>${total}</td><td>${aprobados}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteEmployee('${d.id}','${u.nombre} ${u.apellido||""}')"><i class="ti ti-trash"></i></button></td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteEmployee('${uid}','${u.nombre} ${u.apellido||""}')"><i class="ti ti-trash"></i></button></td>
       </tr>`;
     }).join("");
-    el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Local</th><th>Sueldo semanal</th><th>Registros</th><th>Aprobados</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    el.innerHTML=`<div class="table-wrap"><table><thead><tr>
+      <th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Contraseña</th>
+      <th>Local</th><th>Tarifa/hr</th><th>Registros</th><th>Aprobados</th><th></th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
   } catch(e) { el.innerHTML='<div class="empty">Error al cargar.</div>'; console.error(e); }
+};
+
+// ── Toggle password visibility ────────────────────────────────
+window.togglePass = function(uid, pass) {
+  const el  = document.getElementById("pass-"+uid);
+  const eye = document.getElementById("eye-"+uid);
+  if (!el) return;
+  if (el.textContent === "••••••••") {
+    el.textContent = pass;
+    el.style.letterSpacing = "normal";
+    eye.className = "ti ti-eye-off";
+  } else {
+    el.textContent = "••••••••";
+    el.style.letterSpacing = "2px";
+    eye.className = "ti ti-eye";
+  }
+};
+
+// ── Set/update stored password for employee ───────────────────
+window.setStoredPass = async function(uid) {
+  const newPass = prompt("Ingresa la contraseña actual de la empleada para guardarla\n(mínimo 6 caracteres):");
+  if (!newPass) return;
+  if (newPass.length < 6) { alert("La contraseña debe tener al menos 6 caracteres."); return; }
+  showLoading("Guardando...");
+  try {
+    await updateDoc(doc(db,"users",uid), { pass: newPass });
+    await window.renderEmployees();
+  } catch(e) { alert("Error: "+e.message); }
+  hideLoading();
 };
 
 // ── Delete employee ───────────────────────────────────────────
@@ -572,85 +624,89 @@ function fmtHoras(mins) {
   return `${h}h ${m}m`;
 }
 
+// ── Safe getElementById helper for modal ─────────────────────
+function mEl(id) { return document.getElementById(id); }
+function mSet(id, prop, val) { const e = mEl(id); if (e) e[prop] = val; }
+function mStyle(id, prop, val) { const e = mEl(id); if (e) e.style[prop] = val; }
+
 // ── Modal: Editar registro ────────────────────────────────────
 window.openEditModal = function(recordId, fecha, entrada, salida) {
-  document.getElementById("modal-record-id").value = recordId;
-  document.getElementById("modal-mode").value = "edit";
-  document.getElementById("modal-title").textContent = "Editar horas del registro";
-  document.getElementById("modal-advance-banner").style.display = "none";
-  document.getElementById("modal-advance-extra").style.display = "none";
-  document.getElementById("modal-emp-group").style.display = "none";
-  document.getElementById("modal-newday-banner").style.display = "none";
-  document.getElementById("modal-newday-fields").style.display = "none";
-  document.getElementById("modal-motivo-group").style.display = "block";
-  // Asegurar que entrada siempre sea visible en modo edición
-  document.getElementById("modal-entrada-group").style.display = "block";
-  document.getElementById("modal-salida-hint").style.display = "none";
-  document.getElementById("modal-fecha").value = fecha;
-  document.getElementById("modal-fecha").disabled = true;
-  document.getElementById("modal-entrada").value = entrada || "";
-  document.getElementById("modal-salida").value = salida || "";
-  document.getElementById("modal-motivo").value = "";
-  document.getElementById("modal-save-btn").innerHTML = '<i class="ti ti-device-floppy"></i> Guardar cambios';
-  document.getElementById("modal-edit").classList.add("visible");
+  mSet("modal-record-id", "value", recordId);
+  mSet("modal-mode", "value", "edit");
+  mSet("modal-title", "textContent", "Editar horas del registro");
+  mStyle("modal-advance-banner", "display", "none");
+  mStyle("modal-advance-extra", "display", "none");
+  mStyle("modal-emp-group", "display", "none");
+  mStyle("modal-newday-banner", "display", "none");
+  mStyle("modal-newday-fields", "display", "none");
+  mStyle("modal-motivo-group", "display", "block");
+  mStyle("modal-entrada-group", "display", "block");
+  mSet("modal-salida-label", "textContent", "Hora de salida");
+  mSet("modal-fecha", "value", fecha);
+  mEl("modal-fecha") && (mEl("modal-fecha").disabled = true);
+  mSet("modal-entrada", "value", entrada || "");
+  mSet("modal-salida", "value", salida || "");
+  mSet("modal-motivo", "value", "");
+  mSet("modal-save-btn", "innerHTML", '<i class="ti ti-device-floppy"></i> Guardar cambios');
+  mEl("modal-edit")?.classList.add("visible");
 };
 
 // ── Modal: Agregar día completo ───────────────────────────────
 window.openNewDayModal = async function() {
   const workers = (await getDocs(query(collection(db,"users"), where("role","==","worker")))).docs;
-  const empSel = document.getElementById("modal-emp-id");
-  empSel.innerHTML = workers.map(d=>`<option value="${d.id}">${d.data().nombre} ${d.data().apellido||""}</option>`).join("") || '<option value="">Sin empleadas</option>';
+  const empSel = mEl("modal-emp-id");
+  if (empSel) empSel.innerHTML = workers.map(d=>`<option value="${d.id}">${d.data().nombre} ${d.data().apellido||""}</option>`).join("") || '<option value="">Sin empleadas</option>';
 
-  document.getElementById("modal-record-id").value = "";
-  document.getElementById("modal-mode").value = "newday";
-  document.getElementById("modal-title").textContent = "Agregar día trabajado";
-  document.getElementById("modal-advance-banner").style.display = "none";
-  document.getElementById("modal-newday-banner").style.display = "flex";
-  document.getElementById("modal-advance-extra").style.display = "none";
-  document.getElementById("modal-newday-fields").style.display = "block";
-  document.getElementById("modal-emp-group").style.display = "block";
-  document.getElementById("modal-motivo-group").style.display = "none";
-  document.getElementById("modal-entrada-group").style.display = "block";
-  document.getElementById("modal-salida-label").textContent = "Hora de salida";
+  mSet("modal-record-id", "value", "");
+  mSet("modal-mode", "value", "newday");
+  mSet("modal-title", "textContent", "Agregar día trabajado");
+  mStyle("modal-advance-banner", "display", "none");
+  mStyle("modal-newday-banner", "display", "flex");
+  mStyle("modal-advance-extra", "display", "none");
+  mStyle("modal-newday-fields", "display", "block");
+  mStyle("modal-emp-group", "display", "block");
+  mStyle("modal-motivo-group", "display", "none");
+  mStyle("modal-entrada-group", "display", "block");
+  mSet("modal-salida-label", "textContent", "Hora de salida");
 
   const today = new Date();
-  document.getElementById("modal-fecha").value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
-  document.getElementById("modal-fecha").disabled = false;
-  document.getElementById("modal-entrada").value = "";
-  document.getElementById("modal-salida").value = "";
-  document.getElementById("modal-base").value = "";
-  document.getElementById("modal-ventas").value = "";
-  document.getElementById("modal-recargas").value = "";
-  document.getElementById("modal-comentarios").value = "";
-  document.getElementById("modal-save-btn").innerHTML = '<i class="ti ti-calendar-plus"></i> Agregar día';
-  document.getElementById("modal-edit").classList.add("visible");
+  mSet("modal-fecha", "value", `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`);
+  mEl("modal-fecha") && (mEl("modal-fecha").disabled = false);
+  mSet("modal-entrada", "value", "");
+  mSet("modal-salida", "value", "");
+  mSet("modal-base", "value", "");
+  mSet("modal-ventas", "value", "");
+  mSet("modal-recargas", "value", "");
+  mSet("modal-comentarios", "value", "");
+  mSet("modal-save-btn", "innerHTML", '<i class="ti ti-calendar-plus"></i> Agregar día');
+  mEl("modal-edit")?.classList.add("visible");
 };
+
+// ── Modal: Adelantar hora de salida ──────────────────────────
 window.openAdvanceModal = async function() {
   const workers = (await getDocs(query(collection(db,"users"), where("role","==","worker")))).docs;
-  const empSel = document.getElementById("modal-emp-id");
-  empSel.innerHTML = workers.map(d=>`<option value="${d.id}">${d.data().nombre} ${d.data().apellido||""}</option>`).join("") || '<option value="">Sin empleadas</option>';
+  const empSel = mEl("modal-emp-id");
+  if (empSel) empSel.innerHTML = workers.map(d=>`<option value="${d.id}">${d.data().nombre} ${d.data().apellido||""}</option>`).join("") || '<option value="">Sin empleadas</option>';
 
-  document.getElementById("modal-record-id").value = "";
-  document.getElementById("modal-mode").value = "advance";
-  document.getElementById("modal-title").textContent = "Adelantar hora de salida";
-  document.getElementById("modal-advance-banner").style.display = "flex";
-  document.getElementById("modal-advance-extra").style.display = "block";
-  document.getElementById("modal-emp-group").style.display = "block";
-  document.getElementById("modal-motivo-group").style.display = "none";
-  document.getElementById("modal-newday-banner").style.display = "none";
-  document.getElementById("modal-newday-fields").style.display = "none";
-
-  // Ocultar entrada — la empleada ya la registró o la registrará
-  document.getElementById("modal-entrada-group").style.display = "none";
-  document.getElementById("modal-salida-hint").style.display = "inline";
+  mSet("modal-record-id", "value", "");
+  mSet("modal-mode", "value", "advance");
+  mSet("modal-title", "textContent", "Adelantar hora de salida");
+  mStyle("modal-advance-banner", "display", "flex");
+  mStyle("modal-advance-extra", "display", "block");
+  mStyle("modal-emp-group", "display", "block");
+  mStyle("modal-motivo-group", "display", "none");
+  mStyle("modal-newday-banner", "display", "none");
+  mStyle("modal-newday-fields", "display", "none");
+  mStyle("modal-entrada-group", "display", "none");
+  mSet("modal-salida-label", "textContent", "Hora de salida estimada");
 
   const today = new Date();
-  document.getElementById("modal-fecha").value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
-  document.getElementById("modal-fecha").disabled = false;
-  document.getElementById("modal-entrada").value = "";
-  document.getElementById("modal-salida").value = "";
-  document.getElementById("modal-save-btn").innerHTML = '<i class="ti ti-clock-bolt"></i> Adelantar salida';
-  document.getElementById("modal-edit").classList.add("visible");
+  mSet("modal-fecha", "value", `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`);
+  mEl("modal-fecha") && (mEl("modal-fecha").disabled = false);
+  mSet("modal-entrada", "value", "");
+  mSet("modal-salida", "value", "");
+  mSet("modal-save-btn", "innerHTML", '<i class="ti ti-clock-bolt"></i> Adelantar salida');
+  mEl("modal-edit")?.classList.add("visible");
 };
 
 window.closeEditModal = function() {

@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Hakuna Matata — Control de Personal</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
@@ -27,7 +30,6 @@
         <div class="form-group"><label>Contraseña</label><input type="password" id="login-pass" placeholder="••••••••"></div>
         <div id="login-error" class="alert alert-danger" style="display:none"></div>
         <button class="btn btn-primary w100" onclick="doLogin()"><i class="ti ti-login"></i> Entrar</button>
-
       </div>
       <div id="auth-register" style="display:none">
         <div class="grid-2">
@@ -117,6 +119,24 @@
           <div class="form-group"><label>Total ventas ($)</label><input type="number" id="f-ventas" placeholder="0.00" min="0" step="0.01"></div>
           <div class="form-group"><label>Total recargas ($)</label><input type="number" id="f-recargas" placeholder="0.00" min="0" step="0.01"></div>
         </div>
+
+        <!-- Consumos del local -->
+        <hr class="divider">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--danger-text);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:6px">
+              <i class="ti ti-shopping-bag" style="font-size:15px"></i> Consumos del local
+            </div>
+            <div class="small text-muted">Lo que tomaste del local hoy — se descuenta de tu pago</div>
+          </div>
+          <button class="btn btn-sm" onclick="agregarConsumo()" style="border-color:var(--danger);color:var(--danger-text)">
+            <i class="ti ti-plus"></i> Agregar
+          </button>
+        </div>
+        <div id="consumos-list"></div>
+        <div id="consumos-total" style="display:none;font-size:13px;font-weight:600;color:var(--danger-text);text-align:right;margin-bottom:.75rem"></div>
+
+        <hr class="divider">
         <div class="form-group"><label>Comentarios / Pendientes</label><textarea id="f-comentarios" rows="3" placeholder="Ej: Faltó reponer producto X, pendiente cobro cliente Y..."></textarea></div>
         <button class="btn btn-primary" onclick="enviarCierre()"><i class="ti ti-send"></i> Enviar al administrador</button>
       </div>
@@ -330,11 +350,11 @@
 
 <div id="loading-overlay"><div class="spinner"></div><span id="loading-text">Cargando...</span></div>
 
-<script type="module" src="js/firebase-config.js"></script>
-<script type="module" src="js/auth.js"></script>
-<script type="module" src="js/worker.js"></script>
-<script type="module" src="js/admin.js"></script>
-<script type="module" src="js/pdf.js"></script>
-<script type="module" src="js/app.js"></script>
+<script type="module" src="js/firebase-config.js?v=11"></script>
+<script type="module" src="js/auth.js?v=11"></script>
+<script type="module" src="js/worker.js?v=11"></script>
+<script type="module" src="js/admin.js?v=11"></script>
+<script type="module" src="js/pdf.js?v=11"></script>
+<script type="module" src="js/app.js?v=11"></script>
 </body>
 </html>

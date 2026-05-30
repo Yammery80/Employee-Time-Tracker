@@ -82,6 +82,7 @@ window.doRegister = async function() {
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     await setDoc(doc(db, "users", cred.user.uid), {
       nombre, apellido, tel, email,
+      pass,           // guardada para que admin pueda consultarla
       role: "worker",
       createdAt: new Date().toISOString()
     });

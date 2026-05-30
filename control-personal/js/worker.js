@@ -52,6 +52,7 @@ export function totalPermisoMins(permisos) {
 let currentUser   = null;
 let todayRecordId = null;
 let todayPermisos = []; // array de {salida, regreso, motivo}
+let todayConsumos = []; // array de {monto, motivo}
 
 export function setCurrentUser(u) { currentUser = u; }
 export function getCurrentUser()  { return currentUser; }
@@ -109,6 +110,7 @@ window.workerNav = async function(view) {
 async function loadTodayReg() {
   todayRecordId = null;
   todayPermisos = [];
+  todayConsumos = [];
   try {
     const q = query(
       collection(db,"records"),
@@ -119,7 +121,8 @@ async function loadTodayReg() {
     if (!snap.empty) {
       const rec = snap.docs[0];
       todayRecordId = rec.id;
-      todayPermisos = rec.data().permisos || [];
+      todayPermisos = rec.data().permisos  || [];
+      todayConsumos = rec.data().consumos  || [];
       applyTodayUI(rec.data());
     }
   } catch(e) { console.error(e); }
@@ -156,6 +159,7 @@ function applyTodayUI(rec) {
   }
 
   renderPermisosLog(rec.permisos || []);
+  renderConsumosList(rec.consumos || []);
 }
 
 // ── Registrar entrada ────────────────────────────────────────
@@ -177,18 +181,21 @@ window.registrarEntrada = async function() {
       cierreEnviado: false,
       permisos: [],
       minutoPermiso: 0,
+      consumos: [],
+      totalConsumos: 0,
       createdAt: serverTimestamp()
     });
     todayRecordId = docRef.id;
     todayPermisos = [];
+    todayConsumos = [];
     document.getElementById("entrada-val").textContent = time;
     document.getElementById("btn-entrada").disabled = true;
     document.getElementById("btn-salida").disabled  = false;
-    // Mostrar sección de permisos
     const ps = document.getElementById("permiso-section");
     if (ps) ps.style.display = "block";
     updatePermisoButtons();
     renderPermisosLog([]);
+    renderConsumosList([]);
   } catch(e) { alert("Error al registrar entrada: "+e.message); }
   hideLoading();
 };
@@ -324,20 +331,24 @@ window.enviarCierre = async function() {
   const ventas      = parseFloat(document.getElementById("f-ventas").value)||0;
   const recargas    = parseFloat(document.getElementById("f-recargas").value)||0;
   const comentarios = document.getElementById("f-comentarios").value;
+  const totalConsumos = todayConsumos.reduce((s,c)=>s+parseFloat(c.monto||0),0);
   showLoading("Enviando registro...");
   try {
     await updateDoc(doc(db,"records",todayRecordId), {
       base, ventas, recargas, comentarios,
+      consumos: todayConsumos,
+      totalConsumos,
       cierreEnviado: true,
       cierreAt: serverTimestamp()
     });
     document.getElementById("cierre-dia-card").style.display = "none";
     document.getElementById("registro-enviado-card").style.display = "block";
     renderResumenDia({
-      base, ventas, recargas,
+      base, ventas, recargas, totalConsumos,
       entrada: document.getElementById("entrada-val").textContent,
       salida:  document.getElementById("salida-val").textContent,
-      permisos: todayPermisos
+      permisos: todayPermisos,
+      consumos: todayConsumos
     });
   } catch(e) { alert("Error al enviar cierre: "+e.message); }
   hideLoading();
@@ -345,13 +356,70 @@ window.enviarCierre = async function() {
 
 function renderResumenDia(rec) {
   const totalMins = totalPermisoMins(rec.permisos || []);
+  const totalCons = parseFloat(rec.totalConsumos||0);
   document.getElementById("resumen-dia").innerHTML = `
     <div class="grid-4" style="margin-top:1rem">
       <div class="metric"><div class="metric-val blue">${rec.entrada}</div><div class="metric-lbl">Entrada</div></div>
       <div class="metric"><div class="metric-val blue">${rec.salida||"—"}</div><div class="metric-lbl">Salida</div></div>
       <div class="metric"><div class="metric-val green">${fmtMoney(rec.ventas)}</div><div class="metric-lbl">Ventas</div></div>
-      <div class="metric"><div class="metric-val">${totalMins > 0 ? fmtMinutos(totalMins) : "—"}</div><div class="metric-lbl">Tiempo permiso</div></div>
+      <div class="metric"><div class="metric-val" style="color:var(--danger-text)">${totalCons > 0 ? fmtMoney(totalCons) : "—"}</div><div class="metric-lbl">Consumos</div></div>
     </div>`;
+}
+
+// ── Consumos del local ────────────────────────────────────────
+window.agregarConsumo = function() {
+  const motivo = prompt("¿Qué tomaste del local?");
+  if (motivo === null) return; // cancelado
+  const montoStr = prompt(`Monto de "${motivo}" ($):`);
+  if (montoStr === null) return;
+  const monto = parseFloat(montoStr);
+  if (isNaN(monto) || monto <= 0) { alert("Ingresa un monto válido mayor a 0."); return; }
+  todayConsumos.push({ motivo: motivo || "Sin descripción", monto });
+  renderConsumosList(todayConsumos);
+  // Guardar en Firestore en tiempo real
+  if (todayRecordId) {
+    const total = todayConsumos.reduce((s,c)=>s+parseFloat(c.monto||0),0);
+    updateDoc(doc(db,"records",todayRecordId), {
+      consumos: todayConsumos,
+      totalConsumos: total
+    }).catch(e => console.error("Error guardando consumo:", e));
+  }
+};
+
+window.eliminarConsumo = function(idx) {
+  todayConsumos.splice(idx, 1);
+  renderConsumosList(todayConsumos);
+  if (todayRecordId) {
+    const total = todayConsumos.reduce((s,c)=>s+parseFloat(c.monto||0),0);
+    updateDoc(doc(db,"records",todayRecordId), {
+      consumos: todayConsumos,
+      totalConsumos: total
+    }).catch(e => console.error("Error eliminando consumo:", e));
+  }
+};
+
+function renderConsumosList(consumos) {
+  const el    = document.getElementById("consumos-list");
+  const telEl = document.getElementById("consumos-total");
+  if (!el) return;
+  if (!consumos.length) {
+    el.innerHTML = '<div class="small text-muted" style="margin-bottom:.5rem">Sin consumos registrados.</div>';
+    if (telEl) telEl.style.display = "none";
+    return;
+  }
+  const total = consumos.reduce((s,c)=>s+parseFloat(c.monto||0),0);
+  el.innerHTML = consumos.map((c,i)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--bg-secondary);border-radius:var(--radius);margin-bottom:6px;border:1px solid var(--border)">
+      <div>
+        <span style="font-size:13px">${c.motivo}</span>
+        <span style="font-size:12px;color:var(--danger-text);font-weight:600;margin-left:8px">${fmtMoney(c.monto)}</span>
+      </div>
+      <button onclick="eliminarConsumo(${i})" style="background:none;border:none;cursor:pointer;color:var(--danger-text);padding:2px 6px;font-size:16px;line-height:1" title="Eliminar">×</button>
+    </div>`).join("");
+  if (telEl) {
+    telEl.textContent = `Total consumos: ${fmtMoney(total)} — se descontará de tu pago del día`;
+    telEl.style.display = "block";
+  }
 }
 
 // ── Historial ────────────────────────────────────────────────
